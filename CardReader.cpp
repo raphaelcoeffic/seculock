@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "CardReader.h"
-
+#include "debug.h"
 
 #define LED_SOLID_GREEN 0x05
 #define LED_BLINK_GREEN 0x04
@@ -8,76 +8,87 @@
 #define LED_SOLID_RED   0x0A
 #define LED_BLINK_RED   0x08
 
-enum {
-    LedSolidGreen,
-    LedBlinkGreen,
-    LedSolidRed,
-    LedBlinkRed
-};
-
-const int8_t LED_DATA[6][2] = {
-    { LED_SOLID_GREEN | 0x20, 0x0A },
+const uint8_t LED_DATA[6][2] = {
+    { LED_SOLID_GREEN | 0x20, 0xFF },
     { LED_BLINK_GREEN | 0x20, 0x0A },
-    { LED_SOLID_RED | 0x20, 0x0A },
+    { LED_SOLID_RED | 0x20, 0xFF },
     { LED_BLINK_RED | 0x20, 0x0A },
     { LED_SOLID_GREEN | LED_SOLID_RED | 0x20, 0x0A},
     { LED_BLINK_GREEN | LED_BLINK_RED | 0x20, 0x0A}
 };
 
 
-
 void CardReader::begin()
 {
     // Start serial link
     com.begin(9600);
+}
 
+void CardReader::init()
+{
     // Version command
     while(!sendCmd(0x00)) {
-        Serial.println("## Card reader KO (version)");
+        debugPrintln(F("## Card reader KO (version)"));
     }
 
     // EXTERN authentication
     while(!sendCmd(0x06)) {
-        Serial.println("## Card reader KO (extern)");
+        debugPrintln(F("## Card reader KO (extern)"));
     }
 }
 
-void CardReader::poll()
+bool CardReader::poll(uint8_t* buffer)
 {
-    uint8_t buffer[256];
-    
     if (com.available()) {
 
         uint8_t b = com.read();
         switch(b) {
 
         case '+':
-            Serial.println("## Card inserted");
+            debugPrint(F("## Card inserted: "));
 
             // IDENTIFY
             if (sendCmd(0x16, buffer, 9)) {
-                Serial.print("## Card ID: ");
+                uint8_t crc = 0;
                 for (uint8_t i=0; i < 8; i++) {
-                    Serial.print(buffer[i], HEX);
+                    crc += buffer[i];
+                    if (buffer[i] < 0x10) debugPrint('0');
+                    debugPrint(buffer[i], HEX);
                 }
-                Serial.println();
-                //sendCmd(0x15, LED_DATA[4], 2); // LEDs
-                //sendCmd(0x08); // Contact
-                return;
-            }
+                crc ^= buffer[8];
 
-            Serial.println("## Error while reading card");
-            sendCmd(0x15, LED_DATA[3], 2); // LEDs
-            break;
+                if (crc) debugPrint(F(" ## CRC error"));
+                debugPrintln();
+
+                if (!crc)
+                    return true;
+            }
+            
+            debugPrintln(F("## Error while reading card"));
+            setLed(LedBlinkRed, 1500);
+            return false;
 
         case '-':
-            Serial.println("## Card removed");
+            debugPrintln(F("## Card removed"));
             break;
 
         default:
             break;
         }
     }
+
+    unsigned long now = millis();
+    if (!refresh_ts || now - refresh_ts > refresh_delay) {
+        debugPrintln(F("## ping LEDs"));
+        if (locked)
+            sendCmd(0x15, (uint8_t*)LED_DATA[LedSolidRed], 2);
+        else
+            sendCmd(0x15, (uint8_t*)LED_DATA[LedSolidGreen], 2);
+        refresh_ts = millis();
+        refresh_delay = 10000;
+    }
+
+    return false;
 }
 
 bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
@@ -105,7 +116,7 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
         case CmdStart:
             com.write(0x2A);
             com.flush();
-            Serial.println("-> 0x2A");
+            //debugPrintln("-> 0x2A");
             st = CmdInit;
             ts = millis();
             break;
@@ -114,27 +125,27 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
             if (com.available()) {
 
                 uint8_t b = com.read();
-                Serial.print("<- 0x");
-                Serial.println(b, HEX);
+                //debugPrint("<- 0x");
+                //debugPrintln(b, HEX);
 
                 if (b == 0xBB) {
                     com.write(cmd);
                     com.flush();
-                    Serial.print("-> 0x");
-                    Serial.println(cmd, HEX);
+                    //debugPrint("-> 0x");
+                    //debugPrintln(cmd, HEX);
 
                     st = CmdCmd;
                     ts = millis();
                 }
                 else {
                     st = CmdError;
-                    //Serial.print("CmdInit: wrong byte read: 0x");
-                    //Serial.println(b, HEX);
+                    //debugPrint("CmdInit: wrong byte read: 0x");
+                    //debugPrintln(b, HEX);
                 }
             }
             else if (millis() - ts > 200) {
                 st = CmdError;
-                Serial.println("CmdInit: timeout");
+                //debugPrintln("CmdInit: timeout");
             }
             break;
 
@@ -142,25 +153,25 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
             if (com.available()) {
                 
                 uint8_t b = com.read();
-                Serial.print("<- 0x");
-                Serial.println(b, HEX);
+                //debugPrint("<- 0x");
+                //debugPrintln(b, HEX);
 
                 if (b == cmd) {
                     com.write(0xBB);
                     com.flush();
-                    Serial.println("-> 0xBB");
+                    //debugPrintln("-> 0xBB");
 
                     st = CmdExe;
                     ts = millis();
                 }
                 else {
                     st = CmdError;
-                    Serial.println("CmdCmd: wrong byte read");
+                    //debugPrintln("CmdCmd: wrong byte read");
                 }
             }
             else if (millis() - ts > 200) {
                 st = CmdError;
-                Serial.println("CmdCmd: timeout");
+                //debugPrintln("CmdCmd: timeout");
             }
             break;
 
@@ -168,8 +179,8 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
             if (com.available()) {
 
                 uint8_t b = com.read();
-                Serial.print("<- 0x");
-                Serial.println(b, HEX);
+                //debugPrint("<- 0x");
+                //debugPrintln(b, HEX);
 
                 if (b == 0xBB) {
                     st = CmdRcvData;
@@ -177,24 +188,18 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
 
                     // LEDs
                     if (cmd == 0x15) {
-                    //     // All green
-                    //     com.write(0x18);
-                    //     Serial.println("-> 0x18");
-                    //     // time
-                    //     com.write(0x08);
-                    //     Serial.println("-> 0x08");
                         st = CmdSendData;
                     }
                 }
                 else {
                     st = CmdError;
-                    Serial.print("CmdExe: wrong byte read: 0x");
-                    Serial.println(b, HEX);
+                    //debugPrint("CmdExe: wrong byte read: 0x");
+                    //debugPrintln(b, HEX);
                 }
             }
-            else if (millis() - ts > 200) {
+            else if (millis() - ts > 300) {
                 st = CmdError;
-                Serial.println("CmdExe: timeout");
+                //debugPrintln("CmdExe: timeout");
             }
             break;
 
@@ -202,17 +207,17 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
 
             if (!buffer || !len) {
                 st = CmdSuccess;
-                Serial.println();
+                //debugPrintln();
             }
             else if (com.available()) {
-                Serial.print(".");
+                //debugPrint(".");
                 *buffer++ = com.read();
                 len--;
             }
             else if (millis() - ts > 600) {
                 st = CmdError;
-                Serial.println();
-                Serial.println("CmdExe: timeout");
+                //debugPrintln();
+                //debugPrintln("CmdExe: timeout");
             }
             break;
 
@@ -220,8 +225,8 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
 
             if (buffer && len) {
                 while(len > 0) {
-                    Serial.print("-> 0x");
-                    Serial.println(*buffer, HEX);
+                    //debugPrint("-> 0x");
+                    //debugPrintln(*buffer, HEX);
                     com.write(*buffer++);
                     len--;
                 }
@@ -233,15 +238,15 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
         case CmdCRC:
 
             if (com.available()) {
-                Serial.print("<- 0x");
-                Serial.println(com.read(), HEX);
+                //debugPrint("<- 0x");
+                //debugPrintln(com.read(), HEX);
                 st = CmdSuccess;
-                Serial.println();
+                //debugPrintln();
             }
             else if (millis() - ts > 100) {
                 st = CmdError;
-                Serial.println();
-                Serial.println("CmdCRC: timeout");
+                //debugPrintln();
+                //debugPrintln("CmdCRC: timeout");
             }
             break;            
             
@@ -253,3 +258,10 @@ bool CardReader::sendCmd(uint8_t cmd, uint8_t* buffer, uint16_t len)
     return st == CmdSuccess;
 }
 
+void CardReader::setLed(LedColor c, unsigned int duration)
+{
+    sendCmd(0x15, (uint8_t*)LED_DATA[c], 2);
+
+    refresh_delay = duration;
+    refresh_ts    = millis();
+}
