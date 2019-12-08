@@ -37,7 +37,7 @@ while True:
             break
     i = i + 1
 
-    printProgressBar(i, 2048, suffix='uploaded', length=50)
+    printProgressBar(i, 2048, suffix='uploaded', length=50, fill='#')
 
 print(ser.readline().decode('ascii'))
 ser.close()

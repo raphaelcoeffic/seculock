@@ -7,4 +7,6 @@
 extern extEEPROM  prom;
 extern CardReader cardReader;
 
+extern uint8_t cardSlot;
+
 #endif

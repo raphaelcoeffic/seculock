@@ -23,6 +23,6 @@ ser.write(b'R\n') # EEPROM Read command
 # Read 64KB
 for i in range(0, 1024):
     outf.write(ser.read(64))
-    printProgressBar(i, 1023, suffix='downloaded', length=50)
+    printProgressBar(i, 1023, suffix='downloaded', length=50, fill='#')
 
 ser.close()

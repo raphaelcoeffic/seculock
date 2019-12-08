@@ -27,8 +27,10 @@ Display disp;
 // Pair of 24LC256
 extEEPROM prom(kbits_256, 2, 64);
 
-const uint8_t RotaryKnobPin = A0;
-const uint8_t DoorButtonPin = 14;
+#define DoorButtonPin 14
+
+uint8_t cardSlot = INVALID_CARD;
+
 
 uint32_t sync_time()
 {
@@ -41,11 +43,10 @@ void setup()
     Wire.setClock(400000);
 
     DoorLock::begin();
-    pinMode(RotaryKnobPin, INPUT_PULLUP);
     pinMode(DoorButtonPin, INPUT_PULLUP);
 
-    // Init rotary encoder PCINT
-    initRotaryPCINT();
+    // Init rotary encoder
+    initRotaryKnob();
 
     // Sync the Time lib with the RTC
     setSyncProvider(sync_time);
@@ -69,40 +70,12 @@ void setup()
     Serial.println("## Card reader OK");
 }
 
-void printInt32(int32_t i32)
-{
-  char buffer[12] = {' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ', '\0'};
-  bool neg = false;
-
-  if (i32 < 0) {
-    neg = true;
-    i32 = -i32;
-  }
-
-  int8_t i = 10;
-  for(; i > 0; i--) {
-    buffer[i] = (i32 % 10) + '0';
-    i32 = i32 / 10;
-    if (i32 == 0) {
-      i--;
-      break;
-    }
-  }
-
-  if (neg)
-    buffer[i] = '-';
-
-  disp.print(buffer);
-}
-
-const char hexDigits[]  = "0123456789ABCDEF";
-const char eepromData[] = "Dead-Beef       ";
+// const char hexDigits[]  = "0123456789ABCDEF";
+// const char eepromData[] = "Dead-Beef       ";
 
 void loop()
 {
-  static unsigned long ts = 0;
   static unsigned long disp_ts = 0;
-  static uint8_t lastCardSlot = INVALID_CARD;
 
   uint8_t cardId[9];
 
@@ -110,18 +83,28 @@ void loop()
 
     uint8_t slot = registerFindCard(cardId);
     if (slot != INVALID_CARD) {
-    
-      cardReader.setLed(CardReader::LedBlinkGreen, 1500);
 
-      if (cardReader.getLocked()) {
-        cardReader.setLocked(false);
-        lastCardSlot = slot;
-        logWriteEntry(LOG_Unlock, slot);
+      User* user = registerReadUser(slot);
+      if (!(user->flags & USER_DENIED)) {
+        
+        cardReader.setLed(CardReader::LedBlinkGreen, 1500);
+
+        if (cardReader.getLocked()) {
+          cardReader.setLocked(false);
+          cardSlot = slot;
+          logWriteEntry(LOG_Unlock, slot);
+        }
+        else {
+          cardReader.setLocked(true);
+          cardSlot = INVALID_CARD;
+          logWriteEntry(LOG_Lock, slot);
+        }
+
+        disp.setDirty();
       }
       else {
-        cardReader.setLocked(true);
-        lastCardSlot = INVALID_CARD;
-        logWriteEntry(LOG_Lock, slot);
+        Serial.println("# user denied");
+        cardReader.setLed(CardReader::LedBlinkRed, 1500);
       }
     }
     else {
@@ -129,31 +112,7 @@ void loop()
     }
   }
 
-  if (millis() - disp_ts > 200) {
-
-    disp.setCursor(0,0);
-    disp.printTime();
-    disp.print(F("  "));
-    disp.printDate();
-
-    disp.setCursor(0,2);
-    if (lastCardSlot != INVALID_CARD) {
-      User* user = registerReadUser(lastCardSlot);
-      disp.print((const char*)user->name);
-    }
-    else {
-      disp.print(F("     > LOCKED <     "));
-      //disp.print(F("                    "));
-    }
-      
-    disp.setCursor(0,3);
-    printInt32(getRotary());
-
-    disp.print(F("  "));
-    disp.print(digitalRead(RotaryKnobPin));
-
-    disp_ts = millis();
-  }
+  disp.refresh();
 
   if (!cardReader.getLocked() && !digitalRead(DoorButtonPin)) {
     DoorLock::open();

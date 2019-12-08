@@ -11,6 +11,8 @@
 static void help();
 static void addCard();
 static void editUser();
+static void blockUser();
+static void unblockUser();
 static void eraseCard();
 //static void setTime();
 
@@ -25,9 +27,10 @@ static const SerialCmd cmds[] = {
     { "help",         help },
     { "add_card",     addCard },
     { "edit_user",    editUser },
+    { "block_user",   blockUser },
+    { "unblock_user", unblockUser },
     { "erase_card",   eraseCard },
     { "erase_all",    registerEraseCards },
-    //{ "set_time",     setTime }
     { nullptr, nullptr }
 };
 
@@ -299,6 +302,60 @@ static void editUser()
     if (readYesNo()) {
         Serial.println(F("yes"));
         writeUser(slot);
+    }
+    else {
+        Serial.println(F("no"));
+    }
+}
+
+static void blockUser()
+{
+    Serial.println(F("> Enter slot #"));
+
+    while(!Serial.available());
+    uint8_t slot = Serial.parseInt();
+    Serial.read(); // eat LF
+    
+    User* user = registerReadUser(slot);
+    Serial.print(F(">  "));
+    Serial.println(user->name);
+    Serial.print(F(">  "));
+    Serial.println(user->telNr);
+
+
+    Serial.print(F("> Block User? (y/n): "));
+    if (readYesNo()) {
+        Serial.println(F("yes"));
+
+        user->flags |= USER_DENIED;
+        registerWriteUser(user, slot);
+    }
+    else {
+        Serial.println(F("no"));
+    }
+}
+
+static void unblockUser()
+{
+    Serial.println(F("> Enter slot #"));
+
+    while(!Serial.available());
+    uint8_t slot = Serial.parseInt();
+    Serial.read(); // eat LF
+    
+    User* user = registerReadUser(slot);
+    Serial.print(F(">  "));
+    Serial.println(user->name);
+    Serial.print(F(">  "));
+    Serial.println(user->telNr);
+
+
+    Serial.print(F("> Unblock User? (y/n): "));
+    if (readYesNo()) {
+        Serial.println(F("yes"));
+
+        user->flags &= ~USER_DENIED;
+        registerWriteUser(user, slot);
     }
     else {
         Serial.println(F("no"));

@@ -30,6 +30,7 @@ __attribute__((__packed__));
 #define BLOCK_FULL 0x80
 
 static uint8_t logtable_head;
+static uint8_t logtable_tail;
 
 void logInit()
 {
@@ -77,21 +78,29 @@ void logInit()
                 break;
             }
         }
+
+        // Search backwards from there the next non-full block
+        uint8_t idx = logtable_head - 1;
+        logtable_tail = logtable_head;
+        
+        for (uint8_t i=0; i<LOG_BLOCKS-1; i++, idx--) {
+            if (idx >= LOG_BLOCKS)
+                idx = LOG_BLOCKS-1;
+
+            // if non-full block: exit
+            if (prom.read(BLOCK_TABLE + (uint16_t)idx) != BLOCK_FULL)
+                break;
+
+            // otherwise, set the tail
+            logtable_tail = idx;
+        }
     }
 }
 
 static uint16_t fetchLogAddr()
 {
-    Serial.print("BLOCK_TABLE = ");
-    Serial.println(BLOCK_TABLE, HEX);
-
     uint16_t entryInBlock = prom.read(BLOCK_TABLE + (uint16_t)logtable_head);
-    Serial.print("entryInBlock = ");
-    Serial.println(entryInBlock, HEX);
-    
     uint16_t addr = BLOCK_ADDR(logtable_head) + sizeof(LogEntry) * entryInBlock;
-    Serial.print("addr = ");
-    Serial.println(addr, HEX);
     return addr;
 }
 
@@ -129,7 +138,36 @@ void logWriteEntry(uint8_t event, uint8_t userId)
     incLogAddr();
 }
 
-bool logReadEntry(LogEntry* entry)
+bool logReadEntry(uint16_t slot, LogEntry* entry)
 {
-    return false;
+    uint8_t block = logtable_head;
+
+    // Serial.print("# slot = ");
+    // Serial.print(slot, DEC);
+
+    while(1) {
+        
+        // Serial.print("  block = ");
+        // Serial.print(block, DEC);
+
+        uint8_t entries = prom.read(BLOCK_TABLE + (uint16_t)block);
+        if (entries > slot) {
+            // Serial.print("  read 0x");
+            uint16_t addr = BLOCK_ADDR(block)
+                + sizeof(LogEntry) * (entries - 1 - slot);
+            prom.read(addr, (byte*)entry, sizeof(LogEntry));
+            // Serial.println(addr, HEX);
+            return true;
+        }
+
+        if (block != logtable_tail) {
+            slot -= entries;
+            block = constrain(block-1, 0, LOG_BLOCKS-1);
+        }
+        else {
+            // Serial.println("  exit");
+            // End of table reached
+            return false;
+        }
+    }
 }
