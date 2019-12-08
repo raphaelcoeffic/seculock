@@ -416,24 +416,35 @@ void Display::showLogs(uint8_t buttonEvent, int8_t rotaryDiff)
     }
 }
 
+bool Display::wakeup()
+{
+    lastKeyTS = millis();
+    if (!isON) {
+        display();
+        backlight();
+        isON = true;
+        return true;
+    }
+
+    return false;
+}
+
 void Display::refresh()
 {
     uint8_t buttonEvent = getRotaryButton();
     int8_t  rotaryDiff  = getRotaryDiff();
 
-    if (buttonEvent || rotaryDiff) {
+    if ( (buttonEvent || rotaryDiff)
+         && (buttonEvent != ROT_Pressed)) {
+
         dirty = true;
-        lastKeyTS = millis();
-        if (!isON && buttonEvent != ROT_Pressed) {
-            display();
-            backlight();
-            isON = true;
+        if (wakeup()) {
             buttonEvent = 0;
             rotaryDiff = 0;
         }
     }
 
-    if (isON && millis() - lastKeyTS > 10000) {
+    if (isON && millis() - lastKeyTS > 30000) {
         noDisplay();
         noBacklight();
         isON = false;

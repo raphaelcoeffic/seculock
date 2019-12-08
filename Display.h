@@ -22,6 +22,7 @@ class Display: protected LiquidCrystal_I2C
     bool isON;
     
     void clear();
+    bool wakeup();
     void printScreen();
     
     //void printDigits(int digits);
@@ -42,7 +43,10 @@ public:
     Display();
     void begin();
 
-    void setDirty() { dirty = true; }
+    void setDirty() {
+        dirty = true;
+        wakeup();
+    }
     void refresh();
 };
 
