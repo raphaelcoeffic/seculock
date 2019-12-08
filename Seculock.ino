@@ -4,6 +4,8 @@
 #include "RotaryEncoder.h"
 #include "Terminal.h"
 #include "Register.h"
+#include "log.h"
+
 #include "debug.h"
 
 // Modded AltSoftSerial (local)
@@ -50,10 +52,16 @@ void setup()
 
     // Init LCD
     disp.begin();
+
+    //while(!Serial);
     
     // Serial Terminal
     Serial.begin(115200);
     Serial.println("## Serial OK");
+
+    // Init logging
+    logInit();
+    logWriteEntry(LOG_Boot, INVALID_CARD);
 
     // Seculock connection
     cardReader.begin();
@@ -96,8 +104,6 @@ void loop()
   static unsigned long disp_ts = 0;
   static uint8_t lastCardSlot = INVALID_CARD;
 
-  // static char lastID[17] = { 0 };
-
   uint8_t cardId[9];
 
   if (cardReader.poll(cardId)) {
@@ -105,20 +111,17 @@ void loop()
     uint8_t slot = registerFindCard(cardId);
     if (slot != INVALID_CARD) {
     
-      // for (int8_t i=0; i < sizeof(lastID)-1; i+=2) {
-      //   lastID[i] = hexDigits[cardBuffer[i/2] & 0xF];
-      //   lastID[i+1] = hexDigits[(cardBuffer[i/2] & 0xF0) >> 4];
-      // }
-
       cardReader.setLed(CardReader::LedBlinkGreen, 1500);
 
       if (cardReader.getLocked()) {
         cardReader.setLocked(false);
         lastCardSlot = slot;
+        logWriteEntry(LOG_Unlock, slot);
       }
       else {
         cardReader.setLocked(true);
         lastCardSlot = INVALID_CARD;
+        logWriteEntry(LOG_Lock, slot);
       }
     }
     else {
@@ -133,13 +136,14 @@ void loop()
     disp.print(F("  "));
     disp.printDate();
 
+    disp.setCursor(0,2);
     if (lastCardSlot != INVALID_CARD) {
-      disp.setCursor(0,2);
       User* user = registerReadUser(lastCardSlot);
       disp.print((const char*)user->name);
     }
     else {
-      disp.print(F("                    "));
+      disp.print(F("     > LOCKED <     "));
+      //disp.print(F("                    "));
     }
       
     disp.setCursor(0,3);

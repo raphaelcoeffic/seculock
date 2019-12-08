@@ -1,6 +1,7 @@
 #include "Seculock.h"
 #include "Terminal.h"
 #include "Register.h"
+#include "Log.h"
 #include "debug.h"
 
 #include <Arduino.h>
@@ -154,19 +155,20 @@ void handleTerminal()
         // Write all 64KB to EEPROM
         for (unsigned long x = 0 ; x < 0x400 ; x++) {
 
-            for (idx = 0; idx < 64 ; idx++) {
-                while(!Serial.available());
-                buffer[idx] = Serial.read();
-            }
-            prom.write(x << 6, buffer, sizeof(buffer));
+            size_t rb = Serial.readBytes(buffer, sizeof(buffer));
+            prom.write(x << 6, buffer, rb);
+
             Serial.print("0x");
             Serial.println(x, HEX);
         }
         Serial.println(DONE);
+
+        // re-init log after EEPROM write
+        logInit();
         break;
 
     case 'T': {
-        time_t pctime = strtoul(buffer+1, nullptr, 10);
+        time_t pctime = strtoul((const char*)buffer+1, nullptr, 10);
         RTC.set(pctime);
         setTime(pctime);
         break;

@@ -46,6 +46,7 @@ bool CardReader::poll(uint8_t* buffer)
 
         case '+':
             debugPrint(F("## Card inserted: "));
+            delay(50);
 
             // IDENTIFY
             if (sendCmd(0x16, buffer, 9)) {
