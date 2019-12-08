@@ -8,7 +8,8 @@
 class Display: protected LiquidCrystal_I2C
 {
     char lines[4][21];
-    
+
+    unsigned long lastKeyTS;
     unsigned long refreshTS;
     bool          dirty;
 
@@ -17,6 +18,8 @@ class Display: protected LiquidCrystal_I2C
 
     int16_t lineCursor;
     int16_t lineOffset;
+
+    bool isON;
     
     void clear();
     void printScreen();

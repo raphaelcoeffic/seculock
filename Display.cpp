@@ -113,12 +113,14 @@ Display::Display()
                         LCD_I2C_D7,
                         LCD_I2C_BL,
                         POSITIVE),
+      lastKeyTS(0),
       refreshTS(0),
       dirty(true),
       menuState(0),
       menuCursor(0),
       lineCursor(0),
-      lineOffset(0)
+      lineOffset(0),
+      isON(true)
 {
 }
 
@@ -419,8 +421,23 @@ void Display::refresh()
     uint8_t buttonEvent = getRotaryButton();
     int8_t  rotaryDiff  = getRotaryDiff();
 
-    if (buttonEvent || rotaryDiff)
+    if (buttonEvent || rotaryDiff) {
         dirty = true;
+        lastKeyTS = millis();
+        if (!isON && buttonEvent != ROT_Pressed) {
+            display();
+            backlight();
+            isON = true;
+            buttonEvent = 0;
+            rotaryDiff = 0;
+        }
+    }
+
+    if (isON && millis() - lastKeyTS > 10000) {
+        noDisplay();
+        noBacklight();
+        isON = false;
+    }
   
     if (dirty || (millis() - refreshTS > 100)) {
 
