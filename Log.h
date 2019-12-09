@@ -22,6 +22,9 @@ struct LogEntry
 __attribute__((__packed__));
 
 void logInit();
+void wipeLogTable();
+void wipeLogClean();
+
 void logWriteEntry(uint8_t event, uint8_t userId);
 bool logReadEntry(uint16_t slot, LogEntry* entry);
 

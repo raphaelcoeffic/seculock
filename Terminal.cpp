@@ -31,13 +31,14 @@ static const SerialCmd cmds[] = {
     { "unblock_user", unblockUser },
     { "erase_card",   eraseCard },
     { "erase_all",    registerEraseCards },
+    { "erase_log",    wipeLogTable },
+    { "erase_full_log", wipeLogClean },
     { nullptr, nullptr }
 };
 
 static const char* DONE = "> done";
 static uint8_t buffer[64];
 static uint8_t idx = 0;
-
 
 static void parseCmd(uint8_t* buffer, uint8_t& idx)
 {

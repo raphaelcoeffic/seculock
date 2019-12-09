@@ -32,40 +32,55 @@ __attribute__((__packed__));
 static uint8_t logtable_head;
 static uint8_t logtable_tail;
 
+static void writeVersion(byte* buffer)
+{
+    buffer[0] = LOG_VERSION_0;
+    buffer[1] = LOG_VERSION_1;
+    buffer[2] = LOG_VERSION_2;
+    buffer[3] = LOG_VERSION_3;
+
+    // Write version
+    prom.write(LOG_OFFSET, buffer, 4);
+}
+
+void wipeLogTable()
+{
+    // First block has less entries
+    prom.write(BLOCK_TABLE, sizeof(LogTable) / sizeof(LogEntry));
+    logtable_head = 0;
+
+    // Wipe block table
+    for (uint8_t i = 1; i < LOG_BLOCKS; i++) {
+        prom.write(BLOCK_TABLE + i, 0x00);
+    }
+}
+
+void wipeLogClean()
+{
+    // Wipe log byte by byte
+    for (uint16_t i = LOG_OFFSET; i < LOG_MAX_ADDR; i++) {
+        prom.write(i, 0x00);
+    }
+
+    logInit();
+}
+
 void logInit()
 {
-    uint8_t  buffer[sizeof(LogTable::version)];
+    uint8_t  buffer[4];
     uint16_t addr = LOG_OFFSET;
 
-    prom.read(addr, buffer, sizeof(LogTable::version));
+    prom.read(addr, buffer, 4);
 
     if (buffer[0] != LOG_VERSION_0 ||
         buffer[1] != LOG_VERSION_1 ||
         buffer[2] != LOG_VERSION_2 ||
         buffer[3] != LOG_VERSION_3) {
 
-        buffer[0] = LOG_VERSION_0;
-        buffer[1] = LOG_VERSION_1;
-        buffer[2] = LOG_VERSION_2;
-        buffer[3] = LOG_VERSION_3;
+        writeVersion(buffer);
+        addr += 4;
 
-        // Write version
-        prom.write(addr, buffer, sizeof(LogTable::version));
-        addr += sizeof(LogTable::version);
-
-        // First block starts after block table
-        Serial.print("1st block: ");
-        Serial.print(addr, HEX);
-        Serial.print('/');
-        Serial.println(sizeof(LogTable) / sizeof(LogEntry), DEC);
-
-        prom.write(addr++, sizeof(LogTable) / sizeof(LogEntry));
-        logtable_head = 0;
-
-        // Wipe block table
-        for (; addr < LOG_OFFSET + sizeof(LogTable); addr++) {
-            prom.write(addr, 0x00);
-        }
+        wipeLogTable();
     }
     else {
         addr += sizeof(LogTable::version);

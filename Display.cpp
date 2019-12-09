@@ -37,7 +37,7 @@ enum {
 
 // Strings
 const PROGMEM char LOCKED[]      = "     > LOCKED <     ";
-const PROGMEM char EMPTY_LOG[]   =   "  -- emtpy --     ";
+const PROGMEM char EMPTY_LOG[]   =   "  -- empty --     ";
 const PROGMEM char SYSTEM_BOOT[] = "  --> System boot   ";
 const PROGMEM char UNLOCKED[]    = "    > UNLOCKED <    ";
 const PROGMEM char CHOICES[]     = "Choices:            ";
