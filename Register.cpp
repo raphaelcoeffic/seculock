@@ -30,6 +30,10 @@ const uint8_t emptyCardSlot[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
+const struct User emptyUser = {
+    "", "", 0, 0
+};
+
 //
 // Users
 //
@@ -108,6 +112,7 @@ void registerEraseCard(uint8_t slot)
 {
     uint16_t offset = OFFSET_IDS + CARD_ID_LEN * (uint16_t)slot;
     prom.write(offset, (byte*)emptyCardSlot, CARD_ID_LEN);
+    registerWriteUser(&emptyUser, slot);
 }
 
 uint8_t registerFindFreeSlot()

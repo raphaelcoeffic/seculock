@@ -48,17 +48,19 @@ void setup()
     // Init rotary encoder
     initRotaryKnob();
 
-    // Sync the Time lib with the RTC
-    setSyncProvider(sync_time);
-
-    // Init LCD
-    disp.begin();
-
-    //while(!Serial);
-    
     // Serial Terminal
     Serial.begin(115200);
     Serial.println("## Serial OK");
+
+    // Sync the Time lib with the RTC
+    setSyncProvider(sync_time);
+    if (timeStatus() != timeSet) 
+      Serial.println("## Unable to sync with the RTC");
+    else
+      Serial.println("## RTC has set the system time");      
+
+    // Init LCD
+    disp.begin();
 
     // Init logging
     logInit();

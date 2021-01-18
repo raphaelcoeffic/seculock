@@ -33,7 +33,7 @@ while True:
     if i % 2 == 1:
         line = ser.readline().decode('ascii')
         if line[0] == '#':
-            print('\nErrory detected!')
+            print('\nError detected!')
             break
     i = i + 1
 

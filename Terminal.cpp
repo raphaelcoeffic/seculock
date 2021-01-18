@@ -10,11 +10,12 @@
 
 static void help();
 static void addCard();
+static void editCard();
 static void editUser();
 static void blockUser();
 static void unblockUser();
 static void eraseCard();
-//static void setTime();
+static void setRtcTime();
 
 static void writeUser(uint8_t slot);
 
@@ -26,6 +27,7 @@ struct SerialCmd {
 static const SerialCmd cmds[] = {
     { "help",         help },
     { "add_card",     addCard },
+    { "edit_card",    editCard },
     { "edit_user",    editUser },
     { "block_user",   blockUser },
     { "unblock_user", unblockUser },
@@ -33,6 +35,7 @@ static const SerialCmd cmds[] = {
     { "erase_all",    registerEraseCards },
     { "erase_log",    wipeLogTable },
     { "erase_full_log", wipeLogClean },
+    { "set_time",     setRtcTime },
     { nullptr, nullptr }
 };
 
@@ -115,6 +118,7 @@ static bool readYesNo()
             res = true;
             break;
 
+        case '\r':
         case '\n':
             return res;
         }
@@ -233,6 +237,33 @@ static void addCard()
     Serial.println(slot, DEC);
 
     writeUser(slot);
+}
+
+static void editCard()
+{
+    Serial.println(F("> Enter slot #"));
+
+    while(!Serial.available());
+    uint8_t slot = Serial.parseInt();
+    Serial.read(); // eat LF
+
+    Serial.println(F("> Insert Card"));
+    while(!cardReader.poll(buffer));
+
+    uint8_t f_slot = registerFindCard(buffer);
+    if (f_slot != INVALID_CARD) {
+        if (f_slot != slot) {
+            Serial.print(F("Card already exist at slot "));
+            Serial.println(f_slot, DEC);
+        }
+    } else if (f_slot == slot) {
+        Serial.print(F("Card was already at slot"));
+        Serial.println(slot, DEC);
+    }
+    else {
+        registerWriteCardId(buffer, slot);
+        cardReader.setLed(CardReader::LedBlinkGreen, 1500);
+    }
 }
 
 static void writeUser(uint8_t slot)
@@ -374,9 +405,17 @@ static void help()
     }
 }
 
-// static void setTime()
-// {
-//     Serial.print(F("> Enter time string (DD/MM/YYYY HH:MM:SS)"));
-//     char* buffer = (char*)registerGetBuffer();
-//     readLine(buffer, 64);    
-// }
+static void setRtcTime()
+{
+    Serial.println(F("> Enter time string (unix timestamp):"));
+    const unsigned long DEFAULT_TIME = 1609459200; // Jan 1 2021 
+    while(!Serial.available());
+    unsigned long pctime = Serial.parseInt();
+
+    if( pctime < DEFAULT_TIME) { // check the value is a valid time (greater than Jan 1 2013)
+        pctime = DEFAULT_TIME; // return 0 to indicate that the time is not valid
+    }
+
+    RTC.set(pctime);
+    setTime(pctime);
+}
